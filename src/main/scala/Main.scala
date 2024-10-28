@@ -18,12 +18,11 @@ case class PrintValueBehavior() extends Behavior:
     engine
 
 object Main extends App:
-  Engine(
-    fpsLimit = 60,
-    List(
+  Engine(fpsLimit = 60)
+    .scheduleGameObjectCreation(
       GameObject(
-        "1",
-        List(ValueBehavior(0), PrintValueBehavior())
+        id = "1",
+        behaviors = List(ValueBehavior(0), PrintValueBehavior())
       )
     )
-  ).run()
+    .run()
