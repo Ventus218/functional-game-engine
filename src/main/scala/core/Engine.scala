@@ -1,27 +1,30 @@
-import monads.IO.*
-import scala.annotation.tailrec
-object Engine:
+package core
 
-  final case class Engine(
+import monads.IO.*
+import GameObject.*
+import Behavior.*
+import scala.reflect.TypeTest
+
+object Engine:
+  opaque type Engine = EngineImpl
+  private case class EngineImpl(
       gameObjects: Map[String, GameObject],
       fpsLimit: Int,
       deltaTimeMillis: Long = 0,
       shouldStop: Boolean = false
   )
-  final case class GameObject(val id: String, var behaviors: List[Behavior])
-  trait Behavior:
-    def apply(engine: Engine, selfId: String): Engine = engine
+
+  def apply(
+      fpsLimit: Int, /*TODO: remove objects*/ objects: List[GameObject]
+  ): Engine =
+    EngineImpl(Map(objects.map(o => (o.id -> o))*), fpsLimit)
 
   extension (e: Engine)
-    @tailrec
+    @scala.annotation.tailrec
     def run(): Engine =
       var computeFrame = for
         startFrameTime <- currentTimeMillis()
-        newEngine = e.gameObjects.values.foldLeft(e)((e, gameObject) =>
-          gameObject.behaviors.foldLeft(e)((e, behavior) =>
-            behavior(e, gameObject.id)
-          )
-        )
+        newEngine = e.gameObjects.values.foldLeft(e)((e, go) => go.onUpdate(e))
         endComputationTime <- currentTimeMillis()
         computationTime = endComputationTime - startFrameTime
         _ <-
@@ -39,8 +42,10 @@ object Engine:
     def updateGameObject(id: String)(f: GameObject => GameObject): Engine =
       e.copy(gameObjects = e.gameObjects.updatedWith(id)(_.map(f)))
 
-  extension (go: GameObject)
-    def updateBehavior(index: Int)(f: Behavior => Behavior): GameObject =
-      go.copy(behaviors =
-        go.behaviors.zipWithIndex.map((b, i) => if i == index then f(b) else b)
-      )
+    def findGameObject(id: String): Option[GameObject] =
+      e.gameObjects.get(id)
+
+    def updateBehaviors[T <: Behavior](id: String)(f: T => T)(using
+        TypeTest[Behavior, T]
+    ): Engine =
+      e.updateGameObject(id)(go => go.updateBehaviors(f))
