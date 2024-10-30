@@ -4,6 +4,8 @@ import Engine.*
 import Behavior.*
 import scala.reflect.ClassTag
 import scala.reflect.TypeTest
+import monads.State.*
+import monads.IO.{*, given}
 
 object GameObject:
   opaque type GameObject = GameObjectImpl
@@ -24,8 +26,10 @@ object GameObject:
     def typedBehaviors[T <: Behavior](using TypeTest[Behavior, T]): List[T] =
       go.behaviors.collect({ case b: T => b })
 
-    def onUpdate(engine: Engine): Engine =
-      go.behaviors.foldLeft(engine)((e, b) => b.onUpdate(e, go.id))
+    def onUpdate(): State[IO, Engine, Unit] =
+      go.behaviors.foldLeft(sameState())((s, b) =>
+        s.flatMap(_ => b.onUpdate(go.id))
+      )
 
     def updateBehaviors[T <: Behavior](
         f: T => T
