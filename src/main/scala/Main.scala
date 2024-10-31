@@ -1,23 +1,24 @@
+import cats.implicits.{given}
+import cats.data.StateT
 import core.Engine
 import core.Engine.*
 import core.GameObject
 import core.GameObject.*
 import core.Behavior.*
-import monads.State.*
-import monads.IO.*
+import cats.effect.IO
 
 case class ValueBehavior(var value: Int) extends Behavior:
-  override def onUpdate(selfId: String): State[IO, Engine, Unit] =
+  override def onUpdate(selfId: String): StateT[IO, Engine, Unit] =
     for _ <- Engine.updateBehaviors[ValueBehavior](selfId)(
         _.copy(value = value + 1)
       )
     yield ()
 
 case class PrintValueBehavior() extends Behavior:
-  override def onUpdate(selfId: String): State[IO, Engine, Unit] =
+  override def onUpdate(selfId: String): StateT[IO, Engine, Unit] =
     for
       go <- Engine.findGameObject(selfId)
-      _ <- State[IO, Engine, Unit](s =>
+      _ <- StateT[IO, Engine, Unit](s =>
         IO(
           (
             s,
@@ -41,4 +42,4 @@ object Main extends App:
         )
     _ <- execution()
   yield ())
-    .run(Engine(fpsLimit = 60))
+    .run(Engine(fpsLimit = 60)).unsafeRunSync()

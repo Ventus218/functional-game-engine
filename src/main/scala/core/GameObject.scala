@@ -1,11 +1,11 @@
 package core
-
+import cats.implicits.{given}
+import cats.data.StateT
 import Engine.*
 import Behavior.*
 import scala.reflect.ClassTag
 import scala.reflect.TypeTest
-import monads.State.*
-import monads.IO.{*, given}
+import cats.effect.IO
 
 object GameObject:
   opaque type GameObject = GameObjectImpl
@@ -26,8 +26,8 @@ object GameObject:
     def typedBehaviors[T <: Behavior](using TypeTest[Behavior, T]): List[T] =
       go.behaviors.collect({ case b: T => b })
 
-    def onUpdate(): State[IO, Engine, Unit] =
-      go.behaviors.foldLeft(sameState())((s, b) =>
+    def onUpdate(): StateT[IO, Engine, Unit] =
+      go.behaviors.foldLeft(StateT.empty[IO, Engine, Unit])((s, b) =>
         s.flatMap(_ => b.onUpdate(go.id))
       )
 

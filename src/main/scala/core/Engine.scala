@@ -1,10 +1,13 @@
 package core
 
-import monads.IO.{*, given}
-import monads.State.*
+import cats.implicits.{given}
+import cats.data.StateT
+import cats.effect.IO
 import GameObject.*
 import Behavior.*
 import scala.reflect.TypeTest
+import java.util.concurrent.TimeUnit
+import scala.concurrent.duration.FiniteDuration
 
 object Engine:
   opaque type Engine = EngineImpl
@@ -21,7 +24,7 @@ object Engine:
     EngineImpl(fpsLimit = fpsLimit)
 
   // @scala.annotation.tailrec
-  def execution(): State[IO, Engine, Unit] =
+  def execution(): StateT[IO, Engine, Unit] =
     for
       startFrameTime <- currentTimeMillis()
       _ <- createGameObjects()
@@ -32,29 +35,29 @@ object Engine:
       _ <- sleepIfNecessary(computationTime)
       endFrameTime <- currentTimeMillis()
       _ <- updateDeltaTime(startFrameTime, endFrameTime)
-      engine <- getState()
+      engine <- StateT.get
       _ <-
-        if engine.shouldStop then sameState()
+        if engine.shouldStop then StateT.empty[IO, Engine, Unit]
         else execution()
     yield ()
 
   def updateGameObject(
       id: String
-  )(f: GameObject => GameObject): State[IO, Engine, Unit] =
-    State(e =>
+  )(f: GameObject => GameObject): StateT[IO, Engine, Unit] =
+    StateT(e =>
       IO((e.copy(gameObjects = e.gameObjects.updatedWith(id)(_.map(f))), ()))
     )
 
-  def findGameObject(id: String): State[IO, Engine, Option[GameObject]] =
-    State(e => IO((e, e.gameObjects.get(id))))
+  def findGameObject(id: String): StateT[IO, Engine, Option[GameObject]] =
+    StateT(e => IO((e, e.gameObjects.get(id))))
 
   def updateBehaviors[T <: Behavior](id: String)(f: T => T)(using
       TypeTest[Behavior, T]
-  ): State[IO, Engine, Unit] =
+  ): StateT[IO, Engine, Unit] =
     updateGameObject(id)(go => go.updateBehaviors(f))
 
-  def scheduleGameObjectCreation(go: GameObject): State[IO, Engine, Unit] =
-    State(e =>
+  def scheduleGameObjectCreation(go: GameObject): StateT[IO, Engine, Unit] =
+    StateT(e =>
       IO(
         (
           e.copy(gameObjectsToCreate = e.gameObjectsToCreate + (go.id -> go)),
@@ -63,8 +66,8 @@ object Engine:
       )
     )
 
-  def createGameObjects(): State[IO, Engine, Unit] =
-    State(e =>
+  def createGameObjects(): StateT[IO, Engine, Unit] =
+    StateT(e =>
       IO(
         (
           e.copy(
@@ -76,21 +79,21 @@ object Engine:
       )
     )
 
-  def scheduleGameObjectDeletion(id: String): State[IO, Engine, Unit] =
+  def scheduleGameObjectDeletion(id: String): StateT[IO, Engine, Unit] =
     for
       go <- findGameObject(id)
       _ <- go match
         case Some(go) =>
-          State((e: Engine) =>
+          StateT((e: Engine) =>
             IO(
               (e.copy(gameObjectsToDelete = e.gameObjectsToDelete + go.id), ())
             )
           )
-        case None => sameState()
+        case None => StateT.empty[IO, Engine, Unit]
     yield ()
 
-  def deleteGameObjects(): State[IO, Engine, Unit] =
-    State(e =>
+  def deleteGameObjects(): StateT[IO, Engine, Unit] =
+    StateT(e =>
       IO(
         (
           e.copy(
@@ -102,18 +105,18 @@ object Engine:
       )
     )
 
-  def executeOnUpdate(): State[IO, Engine, Unit] =
+  def executeOnUpdate(): StateT[IO, Engine, Unit] =
     for
       gameObjects <- gameObjects()
-      _ <- gameObjects.values.foldLeft(sameState[IO, Engine]())((s, go) =>
-        s.flatMap(_ => go.onUpdate())
+      _ <- gameObjects.values.foldLeft(StateT.empty[IO, Engine, Unit])(
+        (s, go) => s.flatMap(_ => go.onUpdate())
       )
     yield ()
 
-  def sleepIfNecessary(computationTime: Long): State[IO, Engine, Unit] =
-    State(e =>
+  def sleepIfNecessary(computationTime: Long): StateT[IO, Engine, Unit] =
+    StateT(e =>
       if computationTime < (1000 / e.fpsLimit) then
-        for _ <- IO.sleep((1000 / e.fpsLimit) - computationTime)
+        for _ <- IO(Thread.sleep((1000 / e.fpsLimit) - computationTime))
         yield (e, ())
       else IO((e, ()))
     )
@@ -121,13 +124,13 @@ object Engine:
   def updateDeltaTime(
       startFrameTime: Long,
       endFrameTime: Long
-  ): State[IO, Engine, Unit] =
-    State(e =>
+  ): StateT[IO, Engine, Unit] =
+    StateT(e =>
       IO((e.copy(deltaTimeMillis = endFrameTime - startFrameTime), ()))
     )
 
-  def currentTimeMillis(): State[IO, Engine, Long] =
-    State(e => IO.currentTimeMillis().map((e, _)))
+  def currentTimeMillis(): StateT[IO, Engine, Long] =
+    StateT(e => IO(System.currentTimeMillis()).map((e, _)))
 
-  private def gameObjects(): State[IO, Engine, Map[String, GameObject]] =
-    State(e => IO((e, e.gameObjects)))
+  private def gameObjects(): StateT[IO, Engine, Map[String, GameObject]] =
+    StateT(e => IO((e, e.gameObjects)))
