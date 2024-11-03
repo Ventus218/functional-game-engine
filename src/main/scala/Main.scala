@@ -16,19 +16,10 @@ case class ValueBehavior(var value: Int) extends Behavior:
 
 case class PrintValueBehavior() extends Behavior:
   override def onUpdate(selfId: String): StateT[IO, Engine, Unit] =
-    for
-      go <- Engine.findGameObject(selfId)
-      _ <- StateT[IO, Engine, Unit](s =>
-        IO(
-          (
-            s,
-            go.foreach(
-              _.typedBehaviors[ValueBehavior].foreach(b => println(b.value))
-            )
-          )
-        )
-      )
-    yield ()
+    for go <- Engine.findGameObject(selfId)
+    yield go.foreach(
+      _.typedBehaviors[ValueBehavior].foreach(b => println(b.value))
+    )
 
 object Main extends App:
   (for
@@ -42,4 +33,5 @@ object Main extends App:
         )
     _ <- execution()
   yield ())
-    .run(Engine(fpsLimit = 60)).unsafeRunSync()
+    .run(Engine(fpsLimit = 60))
+    .unsafeRunSync()

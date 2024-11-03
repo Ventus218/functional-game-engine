@@ -44,12 +44,12 @@ object Engine:
   def updateGameObject(
       id: String
   )(f: GameObject => GameObject): StateT[IO, Engine, Unit] =
-    StateT(e =>
-      IO((e.copy(gameObjects = e.gameObjects.updatedWith(id)(_.map(f))), ()))
+    StateT.modify(e =>
+      e.copy(gameObjects = e.gameObjects.updatedWith(id)(_.map(f)))
     )
 
   def findGameObject(id: String): StateT[IO, Engine, Option[GameObject]] =
-    StateT(e => IO((e, e.gameObjects.get(id))))
+    StateT.inspect(e => e.gameObjects.get(id))
 
   def updateBehaviors[T <: Behavior](id: String)(f: T => T)(using
       TypeTest[Behavior, T]
@@ -57,51 +57,26 @@ object Engine:
     updateGameObject(id)(go => go.updateBehaviors(f))
 
   def scheduleGameObjectCreation(go: GameObject): StateT[IO, Engine, Unit] =
-    StateT(e =>
-      IO(
-        (
-          e.copy(gameObjectsToCreate = e.gameObjectsToCreate + (go.id -> go)),
-          ()
-        )
-      )
+    StateT.modify(e =>
+      e.copy(gameObjectsToCreate = e.gameObjectsToCreate + (go.id -> go))
     )
 
   def createGameObjects(): StateT[IO, Engine, Unit] =
-    StateT(e =>
-      IO(
-        (
-          e.copy(
-            gameObjects = e.gameObjects ++ e.gameObjectsToCreate,
-            gameObjectsToCreate = Map()
-          ),
-          ()
-        )
+    StateT.modify(e =>
+      e.copy(
+        gameObjects = e.gameObjects ++ e.gameObjectsToCreate,
+        gameObjectsToCreate = Map()
       )
     )
 
   def scheduleGameObjectDeletion(id: String): StateT[IO, Engine, Unit] =
-    for
-      go <- findGameObject(id)
-      _ <- go match
-        case Some(go) =>
-          StateT((e: Engine) =>
-            IO(
-              (e.copy(gameObjectsToDelete = e.gameObjectsToDelete + go.id), ())
-            )
-          )
-        case None => StateT.empty[IO, Engine, Unit]
-    yield ()
+    StateT.modify(e => e.copy(gameObjectsToDelete = e.gameObjectsToDelete + id))
 
   def deleteGameObjects(): StateT[IO, Engine, Unit] =
-    StateT(e =>
-      IO(
-        (
-          e.copy(
-            gameObjects = e.gameObjects -- e.gameObjectsToDelete,
-            gameObjectsToDelete = Set()
-          ),
-          ()
-        )
+    StateT.modify(e =>
+      e.copy(
+        gameObjects = e.gameObjects -- e.gameObjectsToDelete,
+        gameObjectsToDelete = Set()
       )
     )
 
@@ -125,12 +100,10 @@ object Engine:
       startFrameTime: Long,
       endFrameTime: Long
   ): StateT[IO, Engine, Unit] =
-    StateT(e =>
-      IO((e.copy(deltaTimeMillis = endFrameTime - startFrameTime), ()))
-    )
+    StateT.modify(e => e.copy(deltaTimeMillis = endFrameTime - startFrameTime))
 
   def currentTimeMillis(): StateT[IO, Engine, Long] =
-    StateT(e => IO(System.currentTimeMillis()).map((e, _)))
+    StateT.lift(IO(System.currentTimeMillis()))
 
   private def gameObjects(): StateT[IO, Engine, Map[String, GameObject]] =
-    StateT(e => IO((e, e.gameObjects)))
+    StateT.inspect(_.gameObjects)
