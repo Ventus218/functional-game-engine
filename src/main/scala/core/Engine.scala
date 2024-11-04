@@ -29,7 +29,9 @@ object Engine:
       startFrameTime <- currentTimeMillis()
       _ <- createGameObjects()
       _ <- deleteGameObjects()
+      _ <- executeOnEarlyUpdate()
       _ <- executeOnUpdate()
+      _ <- executeOnLateUpdate()
       endComputationTime <- currentTimeMillis()
       computationTime = endComputationTime - startFrameTime
       _ <- sleepIfNecessary(computationTime)
@@ -62,29 +64,62 @@ object Engine:
     )
 
   def createGameObjects(): StateT[IO, Engine, Unit] =
-    StateT.modify(e =>
-      e.copy(
-        gameObjects = e.gameObjects ++ e.gameObjectsToCreate,
-        gameObjectsToCreate = Map()
+    for
+      _ <- StateT.modify[IO, Engine](e =>
+        e.copy(gameObjects = e.gameObjects ++ e.gameObjectsToCreate)
       )
-    )
+      createdGameObjects <- StateT.inspect[IO, Engine, Iterable[GameObject]](
+        _.gameObjectsToCreate.values
+      )
+      _ <- createdGameObjects.foldLeft(StateT.empty[IO, Engine, Unit])(
+        (s, go) => s.flatMap(_ => go.onInit())
+      )
+      _ <- StateT.modify[IO, Engine](_.copy(gameObjectsToCreate = Map()))
+    yield ()
 
   def scheduleGameObjectDeletion(id: String): StateT[IO, Engine, Unit] =
     StateT.modify(e => e.copy(gameObjectsToDelete = e.gameObjectsToDelete + id))
 
   def deleteGameObjects(): StateT[IO, Engine, Unit] =
-    StateT.modify(e =>
-      e.copy(
-        gameObjects = e.gameObjects -- e.gameObjectsToDelete,
-        gameObjectsToDelete = Set()
+    for
+      gameObjectsToDelete <- StateT.inspect[IO, Engine, Iterable[GameObject]](
+        e =>
+          e.gameObjectsToDelete.flatMap(id =>
+            e.gameObjects.get(id).map(Set(_)).getOrElse(Set())
+          )
       )
-    )
+      _ <- gameObjectsToDelete.foldLeft(StateT.empty[IO, Engine, Unit])(
+        (s, go) => s.flatMap(_ => go.onDeinit())
+      )
+      _ <- StateT.modify[IO, Engine](e =>
+        e.copy(
+          gameObjects = e.gameObjects -- e.gameObjectsToDelete,
+          gameObjectsToDelete = Set()
+        )
+      )
+    yield ()
+
+  def executeOnEarlyUpdate(): StateT[IO, Engine, Unit] =
+    for
+      gameObjects <- gameObjects()
+      _ <- gameObjects.values.foldLeft(StateT.empty[IO, Engine, Unit])(
+        (s, go) => s.flatMap(_ => go.onEarlyUpdate())
+      )
+    yield ()
 
   def executeOnUpdate(): StateT[IO, Engine, Unit] =
     for
       gameObjects <- gameObjects()
       _ <- gameObjects.values.foldLeft(StateT.empty[IO, Engine, Unit])(
         (s, go) => s.flatMap(_ => go.onUpdate())
+      )
+    yield ()
+
+  def executeOnLateUpdate(): StateT[IO, Engine, Unit] =
+    for
+      gameObjects <- gameObjects()
+      _ <- gameObjects.values.foldLeft(StateT.empty[IO, Engine, Unit])(
+        (s, go) => s.flatMap(_ => go.onLateUpdate())
       )
     yield ()
 

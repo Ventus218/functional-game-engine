@@ -26,9 +26,29 @@ object GameObject:
     def typedBehaviors[T <: Behavior](using TypeTest[Behavior, T]): List[T] =
       go.behaviors.collect({ case b: T => b })
 
+    def onInit(): StateT[IO, Engine, Unit] =
+      go.behaviors.foldLeft(StateT.empty[IO, Engine, Unit])((s, b) =>
+        s.flatMap(_ => b.onInit(go.id))
+      )
+
+    def onEarlyUpdate(): StateT[IO, Engine, Unit] =
+      go.behaviors.foldLeft(StateT.empty[IO, Engine, Unit])((s, b) =>
+        s.flatMap(_ => b.onEarlyUpdate(go.id))
+      )
+
     def onUpdate(): StateT[IO, Engine, Unit] =
       go.behaviors.foldLeft(StateT.empty[IO, Engine, Unit])((s, b) =>
         s.flatMap(_ => b.onUpdate(go.id))
+      )
+
+    def onLateUpdate(): StateT[IO, Engine, Unit] =
+      go.behaviors.foldLeft(StateT.empty[IO, Engine, Unit])((s, b) =>
+        s.flatMap(_ => b.onLateUpdate(go.id))
+      )
+
+    def onDeinit(): StateT[IO, Engine, Unit] =
+      go.behaviors.foldLeft(StateT.empty[IO, Engine, Unit])((s, b) =>
+        s.flatMap(_ => b.onInit(go.id))
       )
 
     def updateBehaviors[T <: Behavior](
