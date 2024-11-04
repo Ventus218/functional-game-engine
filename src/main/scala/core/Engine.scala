@@ -63,7 +63,7 @@ object Engine:
       e.copy(gameObjectsToCreate = e.gameObjectsToCreate + (go.id -> go))
     )
 
-  def createGameObjects(): StateT[IO, Engine, Unit] =
+  private def createGameObjects(): StateT[IO, Engine, Unit] =
     for
       _ <- StateT.modify[IO, Engine](e =>
         e.copy(gameObjects = e.gameObjects ++ e.gameObjectsToCreate)
@@ -80,7 +80,7 @@ object Engine:
   def scheduleGameObjectDeletion(id: String): StateT[IO, Engine, Unit] =
     StateT.modify(e => e.copy(gameObjectsToDelete = e.gameObjectsToDelete + id))
 
-  def deleteGameObjects(): StateT[IO, Engine, Unit] =
+  private def deleteGameObjects(): StateT[IO, Engine, Unit] =
     for
       gameObjectsToDelete <- StateT.inspect[IO, Engine, Iterable[GameObject]](
         e =>
@@ -99,7 +99,7 @@ object Engine:
       )
     yield ()
 
-  def executeOnEarlyUpdate(): StateT[IO, Engine, Unit] =
+  private def executeOnEarlyUpdate(): StateT[IO, Engine, Unit] =
     for
       gameObjects <- gameObjects()
       _ <- gameObjects.values.foldLeft(StateT.empty[IO, Engine, Unit])(
@@ -107,7 +107,7 @@ object Engine:
       )
     yield ()
 
-  def executeOnUpdate(): StateT[IO, Engine, Unit] =
+  private def executeOnUpdate(): StateT[IO, Engine, Unit] =
     for
       gameObjects <- gameObjects()
       _ <- gameObjects.values.foldLeft(StateT.empty[IO, Engine, Unit])(
@@ -115,7 +115,7 @@ object Engine:
       )
     yield ()
 
-  def executeOnLateUpdate(): StateT[IO, Engine, Unit] =
+  private def executeOnLateUpdate(): StateT[IO, Engine, Unit] =
     for
       gameObjects <- gameObjects()
       _ <- gameObjects.values.foldLeft(StateT.empty[IO, Engine, Unit])(
@@ -123,21 +123,24 @@ object Engine:
       )
     yield ()
 
-  def sleepIfNecessary(computationTime: Long): StateT[IO, Engine, Unit] =
-    StateT(e =>
-      if computationTime < (1000 / e.fpsLimit) then
-        for _ <- IO(Thread.sleep((1000 / e.fpsLimit) - computationTime))
-        yield (e, ())
-      else IO((e, ()))
-    )
+  private def sleepIfNecessary(
+      computationTime: Long
+  ): StateT[IO, Engine, Unit] =
+    for
+      fpsLimit <- StateT.inspect[IO, Engine, Int](_.fpsLimit)
+      _ <-
+        if computationTime < (1000 / fpsLimit) then
+          StateT.lift(IO(Thread.sleep((1000 / fpsLimit) - computationTime)))
+        else StateT.empty[IO, Engine, Unit]
+    yield ()
 
-  def updateDeltaTime(
+  private def updateDeltaTime(
       startFrameTime: Long,
       endFrameTime: Long
   ): StateT[IO, Engine, Unit] =
     StateT.modify(e => e.copy(deltaTimeMillis = endFrameTime - startFrameTime))
 
-  def currentTimeMillis(): StateT[IO, Engine, Long] =
+  private def currentTimeMillis(): StateT[IO, Engine, Long] =
     StateT.lift(IO(System.currentTimeMillis()))
 
   private def gameObjects(): StateT[IO, Engine, Map[String, GameObject]] =
