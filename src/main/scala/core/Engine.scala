@@ -134,6 +134,12 @@ object Engine:
         else StateT.empty[IO, Engine, Unit]
     yield ()
 
+  def deltaTimeMillis(): StateT[IO, Engine, Long] =
+    StateT.inspect(_.deltaTimeMillis)
+
+  def deltaTimeSeconds(): StateT[IO, Engine, Double] =
+    StateT.inspect(_.deltaTimeMillis / 1000d)
+
   private def updateDeltaTime(
       startFrameTime: Long,
       endFrameTime: Long
