@@ -5,7 +5,7 @@ import cats.effect.IO
 import Engine.*
 
 object Behavior:
-  trait Behavior(/*val enabled: Boolean = true*/):
+  trait Behavior[Self]( /*val enabled: Boolean = true*/ ):
 
     /** Called only once when the behavior is instatiated. */
     def onInit(selfId: String): StateT[IO, Engine, Unit] = StateT.empty

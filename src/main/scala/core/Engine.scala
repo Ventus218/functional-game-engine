@@ -53,8 +53,8 @@ object Engine:
   def findGameObject(id: String): StateT[IO, Engine, Option[GameObject]] =
     StateT.inspect(e => e.gameObjects.get(id))
 
-  def updateBehaviors[T <: Behavior](id: String)(f: T => T)(using
-      TypeTest[Behavior, T]
+  def updateBehaviors[T <: Behavior[T]](id: String)(f: T => T)(using
+      TypeTest[Behavior[?], T]
   ): StateT[IO, Engine, Unit] =
     updateGameObject(id)(go => go.updateBehaviors(f))
 

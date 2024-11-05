@@ -13,11 +13,11 @@ case class Vector2D(val x: Double, val y: Double):
   infix def *(scalar: Double): Vector2D =
     Vector2D(x * scalar, y * scalar)
 
-case class Position(val position: Vector2D) extends Behavior:
+case class Position(val position: Vector2D) extends Behavior[Position]:
   override def onUpdate(selfId: String): StateT[IO, Engine, Unit] =
     StateT.lift(IO(println(s"x: ${position.x}\ty: ${position.y}")))
 
-case class Velocity(val velocity: Vector2D) extends Behavior:
+case class Velocity(val velocity: Vector2D) extends Behavior[Velocity]:
   override def onUpdate(selfId: String): StateT[IO, Engine, Unit] =
     for
       dt <- Engine.deltaTimeSeconds()
@@ -29,7 +29,8 @@ case class Velocity(val velocity: Vector2D) extends Behavior:
   def impulse(force: Vector2D): Velocity =
     this.copy(velocity + force)
 
-case class Acceleration(val acceleration: Vector2D) extends Behavior:
+case class Acceleration(val acceleration: Vector2D)
+    extends Behavior[Acceleration]:
   override def onUpdate(selfId: String): StateT[IO, Engine, Unit] =
     for
       dt <- Engine.deltaTimeSeconds()
@@ -41,7 +42,7 @@ case class Acceleration(val acceleration: Vector2D) extends Behavior:
 case class Jump(
     debounceFrames: Int = 5,
     private val framesPassedSinceLastJump: Int = 0
-) extends Behavior:
+) extends Behavior[Jump]:
   override def onUpdate(selfId: String): StateT[IO, Engine, Unit] =
     for
       go <- Engine.findGameObject(selfId)
