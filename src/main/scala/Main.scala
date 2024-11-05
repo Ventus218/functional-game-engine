@@ -14,14 +14,14 @@ case class Vector2D(val x: Double, val y: Double):
     Vector2D(x * scalar, y * scalar)
 
 case class Position(val position: Vector2D) extends Behavior[Position]:
-  override def onUpdate(selfId: String): StateT[IO, Engine, Unit] =
+  override def onUpdate(using gameObjectId: SelfId): StateT[IO, Engine, Unit] =
     StateT.lift(IO(println(s"x: ${position.x}\ty: ${position.y}")))
 
 case class Velocity(val velocity: Vector2D) extends Behavior[Velocity]:
-  override def onUpdate(selfId: String): StateT[IO, Engine, Unit] =
+  override def onUpdate(using gameObjectId: SelfId): StateT[IO, Engine, Unit] =
     for
       dt <- Engine.deltaTimeSeconds()
-      _ <- Engine.updateBehaviors[Position](selfId)(p =>
+      _ <- Engine.updateBehaviors[Position](gameObjectId)(p =>
         p.copy(p.position + (velocity * dt))
       )
     yield ()
@@ -31,10 +31,10 @@ case class Velocity(val velocity: Vector2D) extends Behavior[Velocity]:
 
 case class Acceleration(val acceleration: Vector2D)
     extends Behavior[Acceleration]:
-  override def onUpdate(selfId: String): StateT[IO, Engine, Unit] =
+  override def onUpdate(using gameObjectId: SelfId): StateT[IO, Engine, Unit] =
     for
       dt <- Engine.deltaTimeSeconds()
-      _ <- Engine.updateBehaviors[Velocity](selfId)(v =>
+      _ <- Engine.updateBehaviors[Velocity](gameObjectId)(v =>
         v.copy(v.velocity + (acceleration * dt))
       )
     yield ()
@@ -43,9 +43,9 @@ case class Jump(
     debounceFrames: Int = 5,
     private val framesPassedSinceLastJump: Int = 0
 ) extends Behavior[Jump]:
-  override def onUpdate(selfId: String): StateT[IO, Engine, Unit] =
+  override def onUpdate(using gameObjectId: SelfId): StateT[IO, Engine, Unit] =
     for
-      go <- Engine.findGameObject(selfId)
+      go <- Engine.findGameObject(gameObjectId)
       shouldJump = (for
         go <- go
         position <- go.typedBehaviors[Position].headOption
@@ -55,16 +55,16 @@ case class Jump(
         if shouldJump then
           for
             _ <-
-              Engine.updateBehaviors[Velocity](selfId)(
+              Engine.updateBehaviors[Velocity](gameObjectId)(
                 _.impulse(Vector2D(0, 30))
               )
             _ <- StateT.lift(IO(println("jump!!")))
-            _ <- Engine.updateBehaviors[Jump](selfId)(
+            _ <- updateSelfBehaviors(
               _.copy(framesPassedSinceLastJump = -1) // it will soon become 0
             )
           yield ()
         else StateT.empty[IO, Engine, Unit]
-      _ <- Engine.updateBehaviors[Jump](selfId)(
+      _ <- updateSelfBehaviors(
         _.copy(framesPassedSinceLastJump = framesPassedSinceLastJump + 1)
       )
     yield ()

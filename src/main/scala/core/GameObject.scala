@@ -8,6 +8,11 @@ import scala.reflect.TypeTest
 import cats.effect.IO
 
 object GameObject:
+  opaque type SelfId = String
+
+  given Conversion[SelfId, String] with
+    def apply(x: SelfId): String = x
+
   opaque type GameObject = GameObjectImpl
   private case class GameObjectImpl(
       val id: String,
@@ -30,27 +35,27 @@ object GameObject:
 
     def onInit(): StateT[IO, Engine, Unit] =
       go.behaviors.foldLeft(StateT.empty[IO, Engine, Unit])((s, b) =>
-        s.flatMap(_ => b.onInit(go.id))
+        s.flatMap(_ => b.onInit(using go.id))
       )
 
     def onEarlyUpdate(): StateT[IO, Engine, Unit] =
       go.behaviors.foldLeft(StateT.empty[IO, Engine, Unit])((s, b) =>
-        s.flatMap(_ => b.onEarlyUpdate(go.id))
+        s.flatMap(_ => b.onEarlyUpdate(using go.id))
       )
 
     def onUpdate(): StateT[IO, Engine, Unit] =
       go.behaviors.foldLeft(StateT.empty[IO, Engine, Unit])((s, b) =>
-        s.flatMap(_ => b.onUpdate(go.id))
+        s.flatMap(_ => b.onUpdate(using go.id))
       )
 
     def onLateUpdate(): StateT[IO, Engine, Unit] =
       go.behaviors.foldLeft(StateT.empty[IO, Engine, Unit])((s, b) =>
-        s.flatMap(_ => b.onLateUpdate(go.id))
+        s.flatMap(_ => b.onLateUpdate(using go.id))
       )
 
     def onDeinit(): StateT[IO, Engine, Unit] =
       go.behaviors.foldLeft(StateT.empty[IO, Engine, Unit])((s, b) =>
-        s.flatMap(_ => b.onInit(go.id))
+        s.flatMap(_ => b.onInit(using go.id))
       )
 
     def updateBehaviors[T <: Behavior[T]](
